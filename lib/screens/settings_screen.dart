@@ -2,8 +2,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../providers/settings_provider.dart';
+import '../providers/category_provider.dart';
+import '../providers/transaction_provider.dart';
+import '../providers/budget_provider.dart';
 import '../models/app_settings.dart';
+import '../services/backup_service.dart';
 import 'category_screen.dart';
 import 'budget_screen.dart';
 
@@ -173,11 +178,27 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
 
-              // データ管理
+              // データバックアップ
               _buildSectionTitle(context, 'データ管理'),
               Card(
                 child: Column(
                   children: [
+                    ListTile(
+                      leading: const Icon(Icons.backup),
+                      title: const Text('データをバックアップ'),
+                      subtitle: const Text('JSONファイルにエクスポート'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _showBackupDialog(context),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.restore),
+                      title: const Text('データを復元'),
+                      subtitle: const Text('バックアップファイルから復元'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _showRestoreDialog(context),
+                    ),
+                    const Divider(height: 1),
                     ListTile(
                       leading: const Icon(Icons.category),
                       title: const Text('カテゴリ管理'),
@@ -214,12 +235,12 @@ class SettingsScreen extends StatelessWidget {
                 child: ListTile(
                   leading: const Icon(Icons.info),
                   title: const Text('アプリについて'),
-                  subtitle: const Text('バージョン 2.0.0'),
+                  subtitle: const Text('バージョン 2.1.0'),
                   onTap: () {
                     showAboutDialog(
                       context: context,
                       applicationName: '家計簿',
-                      applicationVersion: '2.0.0',
+                      applicationVersion: '2.1.0',
                       applicationLegalese: '© 2024 Smart Ledger',
                       children: const [
                         SizedBox(height: 16),
@@ -234,6 +255,159 @@ class SettingsScreen extends StatelessWidget {
         },
       ),
     );
+  }
+
+  void _showBackupDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('データバックアップ'),
+        content: const Text(
+          'データをJSONファイルにエクスポートします。\n'
+          'ファイルを共有して保存することができます。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.share),
+            label: const Text('共有'),
+            onPressed: () async {
+              Navigator.pop(context);
+              await _performBackup(context);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performBackup(BuildContext context) async {
+    final backupService = BackupService();
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      await backupService.shareBackup();
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('バックアップファイルを作成しました'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('バックアップに失敗しました: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showRestoreDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('データ復元'),
+        content: const Text(
+          '⚠️ 注意: 復元を行うと、現在のデータは全て上書きされます。\n\n'
+          'バックアップファイル（.json）を選択してください。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.folder_open),
+            label: const Text('ファイルを選択'),
+            onPressed: () async {
+              Navigator.pop(context);
+              await _performRestore(context);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performRestore(BuildContext context) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = File(result.files.first.path!);
+      final backupService = BackupService();
+
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      }
+
+      final restoreResult = await backupService.importFromJson(file);
+
+      if (context.mounted) {
+        Navigator.pop(context);
+
+        if (restoreResult.success) {
+          // プロバイダーをリロード
+          final categoryProvider = context.read<CategoryProvider>();
+          final transactionProvider = context.read<TransactionProvider>();
+          final budgetProvider = context.read<BudgetProvider>();
+          
+          await categoryProvider.loadCategories();
+          await transactionProvider.loadTransactions();
+          await budgetProvider.loadBudgets();
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(restoreResult.message),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(restoreResult.message),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('復元に失敗しました: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildSectionTitle(BuildContext context, String title) {
