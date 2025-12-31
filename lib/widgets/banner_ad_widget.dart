@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../services/ad_service.dart';
 
 /// バナー広告ウィジェット
+/// Web/デスクトップではプレースホルダーを表示（広告なし）
+/// Android/iOSでのみ実際の広告を表示
 class BannerAdWidget extends StatefulWidget {
   const BannerAdWidget({super.key});
 
@@ -11,13 +12,15 @@ class BannerAdWidget extends StatefulWidget {
 }
 
 class _BannerAdWidgetState extends State<BannerAdWidget> {
-  BannerAd? _bannerAd;
   bool _isLoaded = false;
 
   @override
   void initState() {
     super.initState();
-    _loadAd();
+    // サポートされているプラットフォームでのみ広告を読み込む
+    if (AdService.instance.isSupported) {
+      _loadAd();
+    }
   }
 
   void _loadAd() {
@@ -25,7 +28,6 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
       onAdLoaded: (ad) {
         if (mounted) {
           setState(() {
-            _bannerAd = ad;
             _isLoaded = true;
           });
         }
@@ -41,23 +43,29 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   }
 
   @override
-  void dispose() {
-    _bannerAd?.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (!_isLoaded || _bannerAd == null) {
-      // 広告読み込み中または失敗時は空のコンテナ
+    // サポートされていないプラットフォームでは何も表示しない
+    if (!AdService.instance.isSupported) {
+      return const SizedBox.shrink();
+    }
+
+    // 広告読み込み中または失敗時
+    if (!_isLoaded) {
       return const SizedBox(height: 50);
     }
 
+    // 広告ウィジェットを取得
+    final adWidget = AdService.instance.getAdWidget();
+    if (adWidget == null) {
+      return const SizedBox(height: 50);
+    }
+
+    final bannerAd = AdService.instance.bannerAd;
     return Container(
       alignment: Alignment.center,
-      width: _bannerAd!.size.width.toDouble(),
-      height: _bannerAd!.size.height.toDouble(),
-      child: AdWidget(ad: _bannerAd!),
+      width: bannerAd?.size.width.toDouble() ?? 320,
+      height: bannerAd?.size.height.toDouble() ?? 50,
+      child: adWidget,
     );
   }
 }
