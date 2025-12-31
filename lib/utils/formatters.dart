@@ -30,6 +30,16 @@ class Formatters {
     return DateFormat('yyyy年M月').format(DateTime(year, month));
   }
 
+  /// DateTime用年月フォーマット
+  static String formatYearMonthDate(DateTime date) {
+    return DateFormat('yyyy年M月').format(date);
+  }
+
+  /// データベース用日付フォーマット
+  static String formatDateForDb(DateTime date) {
+    return DateFormat('yyyy-MM-dd').format(date);
+  }
+
   /// 曜日を取得
   static String getWeekday(DateTime date) {
     const weekdays = ['月', '火', '水', '木', '金', '土', '日'];

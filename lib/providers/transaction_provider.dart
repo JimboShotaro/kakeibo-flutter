@@ -13,6 +13,7 @@ class TransactionProvider with ChangeNotifier {
   double _totalIncome = 0.0;
   Map<String, double> _expenseByCategory = {};
   Map<String, double> _dailyExpense = {};
+  Map<String, double> _dailyIncome = {};
   bool _isLoading = false;
   
   int _selectedYear = DateTime.now().year;
@@ -24,6 +25,7 @@ class TransactionProvider with ChangeNotifier {
   double get balance => _totalIncome - _totalExpense;
   Map<String, double> get expenseByCategory => _expenseByCategory;
   Map<String, double> get dailyExpense => _dailyExpense;
+  Map<String, double> get dailyIncome => _dailyIncome;
   bool get isLoading => _isLoading;
   int get selectedYear => _selectedYear;
   int get selectedMonth => _selectedMonth;
@@ -80,6 +82,7 @@ class TransactionProvider with ChangeNotifier {
       _totalIncome = await _dbHelper.getTotalIncomeByMonth(_selectedYear, _selectedMonth);
       _expenseByCategory = await _dbHelper.getExpenseByCategory(_selectedYear, _selectedMonth);
       _dailyExpense = await _dbHelper.getDailyExpense(_selectedYear, _selectedMonth);
+      _dailyIncome = await _dbHelper.getDailyIncome(_selectedYear, _selectedMonth);
     } catch (e) {
       debugPrint('取引データの読み込みに失敗: $e');
     }

@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 import '../providers/transaction_provider.dart';
 import '../providers/budget_provider.dart';
 import '../providers/category_provider.dart';
+import '../providers/settings_provider.dart';
 import '../widgets/summary_card.dart';
 import '../widgets/budget_progress_bar.dart';
+import '../widgets/budget_remaining_card.dart';
 import '../widgets/month_selector.dart';
 import '../widgets/category_pie_chart.dart';
 import '../widgets/transaction_list_item.dart';
@@ -42,6 +44,22 @@ class _HomeScreenState extends State<HomeScreen> {
     await budgetProvider.loadBudgets();
   }
 
+  int _calculateDaysLeft(int year, int month) {
+    final now = DateTime.now();
+    final lastDayOfMonth = DateTime(year, month + 1, 0);
+    
+    // 表示している月が現在の月と同じ場合
+    if (year == now.year && month == now.month) {
+      return lastDayOfMonth.day - now.day;
+    }
+    // 過去の月の場合
+    if (DateTime(year, month, 1).isBefore(DateTime(now.year, now.month, 1))) {
+      return 0;
+    }
+    // 未来の月の場合
+    return lastDayOfMonth.day;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -56,8 +74,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: Consumer3<TransactionProvider, BudgetProvider, CategoryProvider>(
-        builder: (context, txProvider, budgetProvider, categoryProvider, child) {
+      body: Consumer4<TransactionProvider, BudgetProvider, CategoryProvider, SettingsProvider>(
+        builder: (context, txProvider, budgetProvider, categoryProvider, settingsProvider, child) {
           if (txProvider.isLoading || categoryProvider.isLoading) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -117,6 +135,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
                   // 予算進捗
                   if (budgetProvider.overallBudgetAmount > 0) ...[
+                    // 予算残額表示（設定で有効な場合）
+                    if (settingsProvider.settings.showBudgetRemaining) ...[
+                      BudgetRemainingCard(
+                        budgetAmount: budgetProvider.overallBudgetAmount,
+                        spentAmount: txProvider.totalExpense,
+                        daysLeft: _calculateDaysLeft(txProvider.selectedYear, txProvider.selectedMonth),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     Card(
                       child: Padding(
                         padding: const EdgeInsets.all(16),

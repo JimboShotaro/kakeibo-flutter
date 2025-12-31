@@ -432,6 +432,31 @@ class DatabaseHelper {
     return dailyTotals;
   }
 
+  Future<Map<String, double>> getDailyIncome(int year, int month) async {
+    final db = await database;
+    final startDate = '$year-${month.toString().padLeft(2, '0')}-01';
+    final nextMonth = month == 12 ? 1 : month + 1;
+    final nextYear = month == 12 ? year + 1 : year;
+    final endDate = '$nextYear-${nextMonth.toString().padLeft(2, '0')}-01';
+
+    final result = await db.rawQuery('''
+      SELECT t.transaction_date, COALESCE(SUM(t.amount), 0) as total
+      FROM transactions t
+      INNER JOIN categories c ON t.category_id = c.id
+      WHERE t.transaction_date >= ? AND t.transaction_date < ?
+        AND c.is_expense = 0
+      GROUP BY t.transaction_date
+      ORDER BY t.transaction_date ASC
+    ''', [startDate, endDate]);
+
+    Map<String, double> dailyTotals = {};
+    for (final row in result) {
+      dailyTotals[row['transaction_date'] as String] =
+          (row['total'] as num).toDouble();
+    }
+    return dailyTotals;
+  }
+
   Future<void> close() async {
     final db = await database;
     db.close();
